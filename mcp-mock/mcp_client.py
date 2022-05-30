@@ -5,6 +5,7 @@
 Radical Main Control Program test client.
 """
 
+import base64
 import cmd
 import socket
 import struct
@@ -21,9 +22,15 @@ def _receive_data(sock, size):
 
 
 class MCPClientShell(cmd.Cmd):
+    """A client shell for the Radical MCP."""
     intro = "Type 'help' for information on commands."
     prompt = ">>> "
-    port = 1337
+
+    def __init__(self):
+        super().__init__()
+        self.key_store = {}
+        self.usage = None
+        self.port = 1337
 
     def do_port(self, arg):
         """Change the port number:  port <port>"""
@@ -65,7 +72,7 @@ class MCPClientShell(cmd.Cmd):
         print("Reset complete.")
 
     def do_diagnostic(self, arg):
-        """Perform a diagnostic test."""
+        """Perform a diagnostic test:  diagnostic 4"""
         diagnostic_num = int(arg)
         command = mcp_pb2.Command(
             diagnostic=mcp_pb2.DiagnosticCommand(diagnostic=diagnostic_num)
@@ -73,8 +80,44 @@ class MCPClientShell(cmd.Cmd):
         response = self._run_command(command, mcp_pb2.DiagnosticResponse)
         if response.success:
             print("Diagnostic passed.")
+            self.usage = response.usage
         else:
             print(f"Diagnostic failed with error: \"{response.error}\".")
+
+    def do_key(self, args):
+        """Store a key in a key slot:  key 3 3dy54..."""
+        slot, key_data = int(args[0]), base64.b64decode(args[1])
+        command = mcp_pb2.Command(
+            key=mcp_pb2.KeyCommand(key_data, slot)
+        )
+        response = self._run_command(command, mcp_pb2.KeyResponse)
+        if response.success:
+            print("Key storage succeeded.")
+            self.usage = response.usage
+        else:
+            print("Key storage failed.")
+
+    def do_usage(self, _args):
+        """Print usage of the last command:  usage"""
+        if self.usage is None:
+            print("Previous command did not have usage data.")
+        else:
+            print("Command took:")
+            print(f"    {int(self.usage.cycles)} cycles")
+            print(f"    {self.usage.seconds} seconds")
+            print(f"    {self.usage.power_io} mW on the IO line")
+            print(f"    {self.usage.power_hci} mW on the HCI line")
+            print(f"    {self.usage.power_main} mW on the main line")
+            print(f"    {self.usage.power_core} mW on the core line")
+
+    def precmd(self, line):
+        """Clear usage before every command."""
+        if line.strip() != 'usage':
+            self.usage = None
+        return line
+
+
+
 
 
 if __name__ == "__main__":
