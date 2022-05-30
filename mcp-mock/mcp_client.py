@@ -28,7 +28,6 @@ class MCPClientShell(cmd.Cmd):
 
     def __init__(self):
         super().__init__()
-        self.key_store = {}
         self.usage = None
         self.port = 1337
 
@@ -84,9 +83,10 @@ class MCPClientShell(cmd.Cmd):
         else:
             print(f"Diagnostic failed with error: \"{response.error}\".")
 
-    def do_key(self, args):
+    def do_key(self, arg):
         """Store a key in a key slot:  key 3 3dy54..."""
-        slot, key_data = int(args[0]), base64.b64decode(args[1])
+        arg_vals = arg.split()
+        slot, key_data = int(arg_vals[0]), base64.b64decode(arg_vals[1])
         command = mcp_pb2.Command(
             key=mcp_pb2.KeyCommand(key_data, slot)
         )
@@ -96,6 +96,28 @@ class MCPClientShell(cmd.Cmd):
             self.usage = response.usage
         else:
             print("Key storage failed.")
+
+    def do_inject(self, args):
+        """HCI inject a written key into a slot: inject 4"""
+        slot = int(args)
+        command = mcp_pb2.Command(
+            key=mcp_pb2.KeyInjectCommand(slot)
+        )
+        response = self._run_command(command, mcp_pb2.KeyInjectResponse)
+        if response.success:
+            print("Key injection succeeded.")
+            self.usage = response.usage
+        else:
+            print("Key injection failed.")
+
+    def do_ntt(self, args):
+        """Perform an NTT on data: ntt 5xo9c..."""
+        poly = [int(coeff) for coeff in args.split()]
+        command = mcp_pb2.Command(
+            key=mcp_pb2.KyberNTTCommand(poly)
+        )
+        response = self._run_command(command, mcp_pb2.KyberNTTResponse)
+
 
     def do_usage(self, _args):
         """Print usage of the last command:  usage"""
