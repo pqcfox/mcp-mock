@@ -14,6 +14,16 @@ import sys
 import mcp_pb2
 
 
+KEY_TYPES = {
+    "saber": mcp_pb2.KeyType.SABER,
+    "kyber": mcp_pb2.KeyType.KYBER,
+    "ntru": mcp_pb2.KeyType.NTRU,
+    "dilithium": mcp_pb2.KeyType.DILITHIUM,
+    "falcon": mcp_pb2.KeyType.FALCON,
+    "aes": mcp_pb2.KeyType.AES,
+}
+
+
 def _receive_data(sock, size):
     data = b""
     while len(data) < size:
@@ -23,6 +33,7 @@ def _receive_data(sock, size):
 
 class MCPClientShell(cmd.Cmd):
     """A client shell for the Radical MCP."""
+
     intro = "Type 'help' for information on commands."
     prompt = ">>> "
 
@@ -81,15 +92,13 @@ class MCPClientShell(cmd.Cmd):
             print("Diagnostic passed.")
             self.usage = response.usage
         else:
-            print(f"Diagnostic failed with error: \"{response.error}\".")
+            print(f'Diagnostic failed with error: "{response.error}".')
 
     def do_key(self, arg):
         """Store a key in a key slot:  key 3 3dy54..."""
         arg_vals = arg.split()
-        slot, key_data = int(arg_vals[0]), base64.b64decode(arg_vals[1])
-        command = mcp_pb2.Command(
-            key=mcp_pb2.KeyCommand(key_data, slot)
-        )
+        slot, key = int(arg_vals[0]), base64.b64decode(arg_vals[1])
+        command = mcp_pb2.Command(key=mcp_pb2.KeyCommand(key=key, slot_num=slot))
         response = self._run_command(command, mcp_pb2.KeyResponse)
         if response.success:
             print("Key storage succeeded.")
@@ -98,11 +107,9 @@ class MCPClientShell(cmd.Cmd):
             print("Key storage failed.")
 
     def do_inject(self, args):
-        """HCI inject a written key into a slot: inject 4"""
+        """HCI inject a written key into a slot:  inject 4"""
         slot = int(args)
-        command = mcp_pb2.Command(
-            key=mcp_pb2.KeyInjectCommand(slot)
-        )
+        command = mcp_pb2.Command(key=mcp_pb2.KeyInjectCommand(slot_num=slot))
         response = self._run_command(command, mcp_pb2.KeyInjectResponse)
         if response.success:
             print("Key injection succeeded.")
@@ -111,13 +118,32 @@ class MCPClientShell(cmd.Cmd):
             print("Key injection failed.")
 
     def do_ntt(self, args):
-        """Perform an NTT on data: ntt 5xo9c..."""
+        """Perform an NTT on data:  ntt 329 582 193..."""
         poly = [int(coeff) for coeff in args.split()]
-        command = mcp_pb2.Command(
-            key=mcp_pb2.KyberNTTCommand(poly)
-        )
+        command = mcp_pb2.Command(ntt=mcp_pb2.KyberNTTCommand(poly=poly))
         response = self._run_command(command, mcp_pb2.KyberNTTResponse)
+        print(f"NTT result: {response.result}")
+        self.usage = response.usage
 
+    def do_sbm(self, args):
+        """Perform a schoolbook multiply on a pair of polynomials:  sbm 291 382... 838 173..."""
+        coeffs = [int(coeff) for coeff in args.split()]
+        poly_a = coeffs[: len(coeffs) // 2]
+        poly_b = coeffs[len(coeffs) // 2 :]
+        command = mcp_pb2.Command(sbm=mcp_pb2.SaberSBMCommand(poly_a=poly_a, poly_b=poly_b))
+        response = self._run_command(command, mcp_pb2.SaberSBMResponse)
+        print(f"SBM result: {sbm.result}")
+        self.usage = response.usage
+
+    def do_keygen(self, args):
+        """Generate a key in a given slot:  keygen kyber 2"""
+        arg_vals = args.split()
+        alg = KEY_TYPES[arg_vals[0].strip()]
+        slot = int(arg_vals[1])
+        command = mcp_pb2.Command(keygen=mcp_pb2.KeygenCommand(alg=alg, key_slot=slot))
+        response = self._run_command(command, mcp_pb2.KeygenResponse)
+        print("Key successfully generated.")
+        self.usage = response.usage
 
     def do_usage(self, _args):
         """Print usage of the last command:  usage"""
@@ -134,12 +160,9 @@ class MCPClientShell(cmd.Cmd):
 
     def precmd(self, line):
         """Clear usage before every command."""
-        if line.strip() != 'usage':
+        if line.strip() != "usage":
             self.usage = None
         return line
-
-
-
 
 
 if __name__ == "__main__":
