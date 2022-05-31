@@ -12,6 +12,8 @@ import sys
 
 import mcp_pb2
 import util
+import saber
+import kyber
 
 
 def generate_usage_data():
@@ -59,14 +61,14 @@ def handle_inject(inject_command):
 
 def handle_ntt(ntt_command):
     print("Performing NTT...")
-    result = [random.randrange(3329) for _ in range(256)]
+    result = kyber.ntt(list(ntt_command.poly))
     return mcp_pb2.KyberNTTResponse(result=result, usage=generate_usage_data())
 
 
 # TODO: make this 13 OR 10 bits
 def handle_sbm(sbm_command):
     print("Performing SBM...")
-    result = [random.randrange(2**13) for _ in range(256)]
+    result = saber.sbm(list(sbm_command.poly_a), list(sbm_command.poly_b))
     return mcp_pb2.SaberSBMResponse(
         result=result,
         usage=generate_usage_data(),
