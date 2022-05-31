@@ -12,6 +12,7 @@ import struct
 import sys
 
 import mcp_pb2
+import util
 
 
 KEY_TYPES = {
@@ -22,13 +23,6 @@ KEY_TYPES = {
     "falcon": mcp_pb2.KeyType.FALCON,
     "aes": mcp_pb2.KeyType.AES,
 }
-
-
-def _receive_data(sock, size):
-    data = b""
-    while len(data) < size:
-        data += sock.recv(size - len(data))
-    return data
 
 
 class MCPClientShell(cmd.Cmd):
@@ -57,19 +51,12 @@ class MCPClientShell(cmd.Cmd):
         mcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         mcp_sock.connect(("localhost", self.port))
 
-        # serialize and frame the command
+        # send the command
         command_data = command.SerializeToString()
-        command_len = struct.pack(">L", len(command_data))
+        util.send_length_prefix_data(mcp_sock, command_data)
 
-        # send the result
-        mcp_sock.sendall(command_len + command_data)
-
-        # receive response length
-        len_data = _receive_data(mcp_sock, 4)
-        (response_len,) = struct.unpack(">L", len_data)
-
-        # receive response
-        response_data = _receive_data(mcp_sock, response_len)
+        # receive the response
+        response_data = util.receive_length_prefix_data(mcp_sock)
 
         # deserialize response
         response = response_cls().FromString(response_data)
@@ -130,9 +117,11 @@ class MCPClientShell(cmd.Cmd):
         coeffs = [int(coeff) for coeff in args.split()]
         poly_a = coeffs[: len(coeffs) // 2]
         poly_b = coeffs[len(coeffs) // 2 :]
-        command = mcp_pb2.Command(sbm=mcp_pb2.SaberSBMCommand(poly_a=poly_a, poly_b=poly_b))
+        command = mcp_pb2.Command(
+            sbm=mcp_pb2.SaberSBMCommand(poly_a=poly_a, poly_b=poly_b)
+        )
         response = self._run_command(command, mcp_pb2.SaberSBMResponse)
-        print(f"SBM result: {sbm.result}")
+        print(f"SBM result: {response.result}")
         self.usage = response.usage
 
     def do_keygen(self, args):

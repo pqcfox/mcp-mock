@@ -10,27 +10,13 @@ import socket
 import struct
 import sys
 
-from mcp_pb2 import (
-    Command,
-    ResetResponse,
-    DiagnosticResponse,
-    KeyResponse,
-    KeyInjectResponse,
-    KyberNTTResponse,
-    SaberSBMResponse,
-    KeygenResponse,
-    EncapsulateResponse,
-    DecapsulateResponse,
-    SignResponse,
-    VerifyResponse,
-    EncryptResponse,
-    DecryptResponse,
-    UsageData,
-)
+import mcp_pb2
+import util
 
 
 def generate_usage_data():
-    return UsageData(
+    """Generate fake usage data."""
+    return mcp_pb2.UsageData(
         cycles=random.randrange(1000, 100000),
         seconds=random.random() * 0.1,
         power_io=random.random(),
@@ -41,14 +27,16 @@ def generate_usage_data():
 
 
 def handle_reset(_reset_command):
+    """Handle a reset command."""
     print("Resetting chip...")
-    return ResetResponse()
+    return mcp_pb2.ResetResponse()
 
 
 def handle_diagnostic(diagnostic_command):
+    """Handle a diagnostic run command."""
     print(f"Performing diagnostic #{diagnostic_command.diagnostic}...")
     success = random.random() < 0.8
-    return DiagnosticResponse(
+    return mcp_pb2.DiagnosticResponse(
         success=success,
         error="" if success else "Something went wrong!",
         usage=generate_usage_data(),
@@ -56,47 +44,38 @@ def handle_diagnostic(diagnostic_command):
 
 
 def handle_key(key_command):
-    pass
+    """Handle a key storage command."""
+    print("Storing key in slot #{key_command.slot_num}...")
+    success = random.random() < 0.8
+    return mcp_pb2.KeyResponse(success=success, usage=generate_usage_data())
 
 
-def handle_inject():
-    pass
+def handle_inject(inject_command):
+    """Handle a key injection command."""
+    print("Injecting key in slot #{inject_command.slot_num}...")
+    success = random.random() < 0.8
+    return mcp_pb2.KeyResponse(success=success, usage=generate_usage_data())
 
 
-def handle_ntt():
-    pass
+def handle_ntt(ntt_command):
+    print("Performing NTT...")
+    result = [random.randrange(3329) for _ in range(256)]
+    return mcp_pb2.KyberNTTResponse(result=result, usage=generate_usage_data())
 
 
-def handle_sbm():
-    pass
+# TODO: make this 13 OR 10 bits
+def handle_sbm(sbm_command):
+    print("Performing SBM...")
+    result = [random.randrange(2**13) for _ in range(256)]
+    return mcp_pb2.SaberSBMResponse(
+        result=result,
+        usage=generate_usage_data(),
+    )
 
 
-def handle_keygen():
-    pass
-
-
-def handle_encaps():
-    pass
-
-
-def handle_decaps():
-    pass
-
-
-def handle_sign():
-    pass
-
-
-def handle_verify():
-    pass
-
-
-def handle_encrypt():
-    pass
-
-
-def handle_decrypt():
-    pass
+def handle_keygen(keygen_command):
+    print("Generating key in slot #{keygen_command.slot_num}")
+    return mcp_pb2.KeygenResponse()
 
 
 command_handlers = {
@@ -107,12 +86,6 @@ command_handlers = {
     "ntt": handle_ntt,
     "sbm": handle_sbm,
     "keygen": handle_keygen,
-    "encaps": handle_encaps,
-    "decaps": handle_decaps,
-    "sign": handle_sign,
-    "verify": handle_verify,
-    "encrypt": handle_encrypt,
-    "decrypt": handle_decrypt,
 }
 
 
@@ -123,21 +96,13 @@ def main():
 
     while True:
         # create a connection
-        (client_sock, address) = mcp_sock.accept()
+        (client_sock, _) = mcp_sock.accept()
 
         # receive command length
-        command_len_data = b""
-        while len(command_len_data) < 4:
-            command_len_data += client_sock.recv(4 - len(command_len_data))
-        (command_len,) = struct.unpack(">L", command_len_data)
-
-        # receive command data
-        command_data = b""
-        while len(command_data) < command_len:
-            command_data += client_sock.recv(command_len - len(command_data))
+        command_data = util.receive_length_prefix_data(client_sock)
 
         # get command
-        command = Command().FromString(command_data)
+        command = mcp_pb2.Command().FromString(command_data)
         command_type = command.WhichOneof("command")
         real_command = getattr(command, command_type)
 
@@ -146,8 +111,7 @@ def main():
         response_data = response.SerializeToString()
 
         # send response
-        response_len = struct.pack(">L", len(response_data))
-        client_sock.sendall(response_len + response_data)
+        util.send_length_prefix_data(client_sock, response_data)
 
 
 if __name__ == "__main__":
