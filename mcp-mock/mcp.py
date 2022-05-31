@@ -65,10 +65,19 @@ def handle_ntt(ntt_command):
     return mcp_pb2.KyberNTTResponse(result=result, usage=generate_usage_data())
 
 
+# TODO: write!
+def handle_secret_ntt(secret_command):
+    print("Performing Dilithium NTT on secret...")
+
+
 # TODO: make this 13 OR 10 bits
 def handle_sbm(sbm_command):
     print("Performing SBM...")
-    result = saber.sbm(list(sbm_command.poly_a), list(sbm_command.poly_b))
+    result = saber.sbm(
+        list(sbm_command.poly_a),
+        list(sbm_command.poly_b),
+        mod=2**10 if sbm_command.post_round else 2**13,
+    )
     return mcp_pb2.SaberSBMResponse(
         result=result,
         usage=generate_usage_data(),

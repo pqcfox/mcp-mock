@@ -119,6 +119,7 @@ message KyberNTTResponse {
 message SaberSBMCommand {
   repeated uint32 poly_a = 1;
   repeated uint32 poly_b = 2;
+  bool post_round = 3;
 }
 
 message SaberSBMResponse {

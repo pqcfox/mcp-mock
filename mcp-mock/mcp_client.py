@@ -113,12 +113,17 @@ class MCPClientShell(cmd.Cmd):
         self.usage = response.usage
 
     def do_sbm(self, args):
-        """Perform a schoolbook multiply on a pair of polynomials:  sbm 291 382... 838 173..."""
-        coeffs = [int(coeff) for coeff in args.split()]
+        """Perform a schoolbook multiply on a pair of polynomials:  sbm [pre/post] 291 382... 838 173..."""
+        arg_vals = args.split()
+        post_round = arg_vals[0].strip() == "post"
+
+        coeffs = [int(coeff) for coeff in arg_vals[1:]]
         poly_a = coeffs[: len(coeffs) // 2]
         poly_b = coeffs[len(coeffs) // 2 :]
         command = mcp_pb2.Command(
-            sbm=mcp_pb2.SaberSBMCommand(poly_a=poly_a, poly_b=poly_b)
+            sbm=mcp_pb2.SaberSBMCommand(
+                poly_a=poly_a, poly_b=poly_b, post_round=post_round
+            )
         )
         response = self._run_command(command, mcp_pb2.SaberSBMResponse)
         print(f"SBM result: {response.result}")
